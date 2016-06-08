@@ -37,25 +37,26 @@ config=$HOME/.ssh/config
 makeKey () {
     mkdir -p $HOME/.ssh/auto
     chmod 700 $HOME/.ssh/auto
-    echo ssh-keygen -t ed25519 -f $HOME/.ssh/auto/$target -C $target -P "''"
-    ssh-keygen -t ed25519 -f $HOME/.ssh/auto/$target -C $target -P "''"
-    echo "Done with makeKey"
+    ssh-keygen -t ed25519 -f $HOME/.ssh/auto/$target -C $target -N ""
+    echo "Keypair created in $HOME/.ssh/auto"
 }
 appendConfig () {
-    echo "Hostname $hostname" >> $config
-    if [[ $root == 1 ]]; then
+    echo "Host $hostname" >> $config
+    if [ $root -eq 1 ]; then
         echo "    user root" >> $config
     else
         echo "    user $username" >> $config
     fi
     echo "    IdentityFile $keypath" >> $config
+    echo "Configuration added to $HOME/.ssh/config"
 }
 insertId () {
     ssh-copy-id -i $pubpath $target
     appendConfig
-    if [[ $root == 1 ]]; then
+    if [ $root -eq 1 ]; then
         ssh $target 'su -c "mkdir -p /root/.ssh; tail -n 1 >> /root/.ssh/authorized_keys"'
     fi
+    echo "Key installed on remote machine."
 }
 
 echo $target
