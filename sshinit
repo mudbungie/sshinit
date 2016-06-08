@@ -1,0 +1,64 @@
+#!/bin/sh
+
+# Program to initialize an SSH configuration with a host. Makes a new SSH key, 
+# copies that to the host, appends the use of that key to the local 
+# ~/.ssh/config. If the -r option is invoked, it will also su into the host's
+# root user, and copy the ssh key there.
+
+# Usage: 
+#   ssh-init [-r] user@host
+
+
+# Parse arguments.
+usage='ssh-init [-r] user@host'
+root=0
+for arg in "$@"; do
+    echo 'iter'
+    case $1 in
+        -r) 
+            root=1
+            ;;
+        *@*) 
+            echo "match for $1"
+            target=$1
+            ;;
+        *)
+            echo $usage
+            ;;
+    esac
+done
+
+username=$(echo $target |cut -d \@ -f 1)
+hostname=$(echo $target |cut -d \@ -f 2)
+keypath=$HOME/.ssh/auto/$target
+pubpath=$keypath.pub
+config=$HOME/.ssh/config
+
+makeKey () {
+    mkdir -p $HOME/.ssh/auto
+    chmod 700 $HOME/.ssh/auto
+    echo ssh-keygen -t ed25519 -f $HOME/.ssh/auto/$target -C $target -P "''"
+    ssh-keygen -t ed25519 -f $HOME/.ssh/auto/$target -C $target -P "''"
+    echo "Done with makeKey"
+}
+appendConfig () {
+    echo "Hostname $hostname" >> $config
+    if [[ $root == 1 ]]; then
+        echo "    user root" >> $config
+    else
+        echo "    user $username" >> $config
+    fi
+    echo "    IdentityFile $keypath" >> $config
+}
+insertId () {
+    ssh-copy-id -i $pubpath $target
+    appendConfig
+    if [[ $root == 1 ]]; then
+        ssh $target 'su -c "mkdir -p /root/.ssh; tail -n 1 >> /root/.ssh/authorized_keys"'
+    fi
+}
+
+echo $target
+
+makeKey
+insertId
