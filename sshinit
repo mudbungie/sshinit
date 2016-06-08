@@ -34,14 +34,34 @@ keypath=$HOME/.ssh/auto/$target
 pubpath=$keypath.pub
 config=$HOME/.ssh/config
 
+# Makes a keypair with no password, and an unidentifying comment.
 makeKey () {
     mkdir -p $HOME/.ssh/auto
     chmod 700 $HOME/.ssh/auto
     ssh-keygen -t ed25519 -f $HOME/.ssh/auto/$target -C $target -N ""
     echo "Keypair created in $HOME/.ssh/auto"
 }
+# Adds configuration in ~/.ssh/config which will invoke the keypair and 
+# user. 
 appendConfig () {
-    echo "Host $hostname" >> $config
+    # Find out if there is any pre-existing configuration for this host.
+    confline=$(grep -n "Host $hostname" $config)
+    # If there was no match, we don't have a pre-existing configuration.
+    if [ $? -ne 0 ] ; then
+        # We're going to be adding to the end of the file.
+        echo "Host $hostname" >> $config
+        startline=$(wc -l $HOME/.ssh/config |cut -d ' ' -f 1)
+    else
+        # If there was a match, then there is pre-existing configuration.
+        # Get the line number.
+        startline=$(echo $confline |cut -d ' ' - f 1)
+        # Get the next declaration, if any, so we know our operational range.
+        endline=$(tail -n+$startline|grep -n '^\s*Host' |\
+            head -n 1 |cut -d ' ' -f 1)
+    fi
+    echo "startline $startline endline $endline"
+    exit
+
     if [ $root -eq 1 ]; then
         echo "    user root" >> $config
     else
@@ -61,5 +81,7 @@ insertId () {
 
 echo $target
 
-makeKey
-insertId
+appendConfig
+exit
+#makeKey
+#insertId
