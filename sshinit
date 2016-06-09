@@ -12,22 +12,12 @@
 # Parse arguments.
 usage='ssh-init [-r] user@host'
 root=0
-for arg in "$@"; do
-    echo "$arg"
-    case $1 in
-        -r) 
-            root=1
-            ;;
-        *\@*) 
-            target=$arg
-            echo target: $target
-            ;;
-        *)
-            echo $usage
-            ;;
-    esac
+while getopts r arg; do
+    root=1
+    shift 1
 done
 
+target=$1
 username=$(echo $target |cut -d \@ -f 1)
 hostname=$(echo $target |cut -d \@ -f 2)
 keypath=$HOME/.ssh/auto/$target
