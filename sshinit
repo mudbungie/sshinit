@@ -18,7 +18,7 @@ for arg in "$@"; do
         -r) 
             root=1
             ;;
-        *@*) 
+        *\@*) 
             target=$arg
             echo target: $target
             ;;
@@ -59,7 +59,7 @@ insertId () {
     ssh-copy-id -i $pubpath $target
     appendConfig
     if [ $root -eq 1 ]; then
-        ssh $target 'su -c "mkdir -p /root/.ssh; tail -n 1 >> /root/.ssh/authorized_keys"'
+        ssh -t $target "su -c \"mkdir -p /root/.ssh; tail -n 1 \$HOME/.ssh/authorized_keys >> /root/.ssh/authorized_keys\""
     fi
     echo "Key installed on remote machine."
 }
