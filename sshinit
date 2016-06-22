@@ -39,6 +39,10 @@ makeKey () {
 # Adds configuration in ~/.ssh/config which will invoke the keypair and 
 # user. 
 appendConfig () {
+    cat $config |while read line; do
+        case $line in
+            ^\s*Host)
+                echo $line
     echo "" >> $config
     echo "Host $hostname" >> $config
 
