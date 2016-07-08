@@ -147,11 +147,12 @@ def insertKey(user, host, bastion):
     remoteCommand = 'mkdir .ssh 2> /dev/null; cat >> .ssh/authorized_keys'
     connstring = user+'@'+host
     with open(environ['HOME'] + '/.ssh/auto/' + connstring + '.pub') as pubkey:
+        #FIXME Add actual bastion parameters.
         if bastion:
+           print('Key not installed, Bastion not yet supported.')
+        else:
             subprocess.call(['ssh', user+'@'+host, remoteCommand], 
                 stdin=pubkey)
-        else:
-           pass 
     print('Key installed.')
 
 if __name__ == '__main__':
