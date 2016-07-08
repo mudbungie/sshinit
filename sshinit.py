@@ -148,11 +148,8 @@ def insertKey(user, host, bastion):
     connstring = user+'@'+host
     with open(environ['HOME'] + '/.ssh/auto/' + connstring + '.pub') as pubkey:
         #FIXME Add actual bastion parameters.
-        if bastion:
-           print('Key not installed, Bastion not yet supported.')
-        else:
-            subprocess.call(['ssh', user+'@'+host, remoteCommand], 
-                stdin=pubkey)
+        subprocess.call(['ssh', user+'@'+host, remoteCommand], 
+            stdin=pubkey)
     print('Key installed.')
 
 if __name__ == '__main__':
