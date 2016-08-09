@@ -25,55 +25,61 @@ class InputError(Exception):
 # user, host, whether or not we're providing root access, and an intermediate
 # hop, if any.
 def handle_args(argv):
-    # There should be one to three arguments. Only the optional root flag can
-    # lack an @ sign.
-    if not 1 <= len(argv) <= 3:
-       raise InputError('Argument list out of range.')
-    host = None
-    bastion = None
-    user = None
+    # Default settings:
     root = False
-    print(argv)
-    # Skip first(this prog), then host, then bastion.
-    for arg in argv[1:]:
-        print(arg)
-        if arg == '-r' or arg == '--root':
+    pseudonym = False
+    target = False
+    bastion = False
+    argv = argv[1:] # Discard the name of the program.
+    for index, arg in enumerate(argv):
+        print(index, arg)
+        if arg == '-r':
             root = True
+        elif arg == '-p':
+            print('it was -p')
+            try:
+                pseudonym = argv.pop(index + 1)
+            except IndexError:
+                raise InputError('-p takes a positional argument.')
+        # First positional is host.
+        elif not target:
+            # Check for the presence of a user.
+            # This does a basic sanity check.
+            targetSplit(arg)
+            target = arg
+        # Second positional is bastion.
+        elif not bastion:
+            bastion = arg
         else:
-            if host:
-                # If you argued more than host and bastion, you're wrong.
-                if bastion:
-                    raise InputError('Too many arguments.')
-                else:
-                    bastion = arg
-            # Splitting on @, host is last, then user. Err if too many @
-            else:
-                target = arg.split('@')
-                host = target[-1]
-                if len(target) == 2:
-                    user = target[0]
-                elif len(target) > 2:
-                    raise InputError
-    if not user:
-        # We want to have a user defined. It's not technological requirement.
-        raise InputError
-
-    return user, host, bastion, root
+            raise InputError('Too many arguments')
+    return target, bastion, root, pseudonym
         
+def targetSplit(*args):
+    if len(args) == 1:
+        host = args[0].split('@')
+        if len(host) == 1:
+            return False, host[0]
+        elif len(host) == 2:
+            return host[0], host[1]
+        else:
+            raise InputError('Too many @ signs in host.')
+    elif len(args) == 2:
+        return '@'.join([args[0], args[1]])
+    else:
+        raise IndexError('wrong number of arguments')
+
 # Makes an SSH key, and puts it into $HOME/.ssh/auto/[target]
-def createKey(user, host):
+def createKey(target):
     keydir = environ['HOME'] + '/.ssh/auto'
-    keypath = keydir + '/' + user + '@' + host
 
     # Make sure that we can insert keys...
     makedirs(keydir, exist_ok=True)
     chmod(keydir, 0o700)
 
     # Actually make it.
-    if user:
-        target = user + '@' + host
-    else:
-        target = host
+
+    keypath = keydir + '/' + target
+
     subprocess.call(['ssh-keygen','-t','ed25519','-f',keypath,'-C',
         target,'-N',''])
     print('Keypair created in', keypath)
@@ -93,6 +99,7 @@ def commentUntilNextHost(config, start):
     user = re.compile(r'^\s*user\s.*$')
     proxy = re.compile(r'^\s*ProxyCommand\s.*')
     idline = re.compile(r'^\s*IdentityFile\s.*')
+    hostnameline = re.compile(r'^\s*hostname\s.*')
     anyhostline = re.compile(r'^\s*Host\s.*')
 
     try:
@@ -105,7 +112,8 @@ def commentUntilNextHost(config, start):
             print('Host match for:', line)
             print('Stopping ssh configuration.')
             return config
-        elif user.match(line) or proxy.match(line) or idline.match(line):
+        elif user.match(line) or proxy.match(line) or idline.match(line) \
+            or hostnameline.match(line):
             print('Commenting out:', line)
             config[index + start] = '#' + line
         else:
@@ -114,7 +122,8 @@ def commentUntilNextHost(config, start):
     return config
 
 # Make the config file have a valid entry for this host.
-def updateConfig(user, host, bastion):
+def updateConfig(target, bastion, pseudonym, keypath):
+    # Just get the config file.
     conffilename = environ['HOME'] + '/.ssh/config'
     try:
         with open(conffilename, 'r') as conffile:
@@ -122,15 +131,22 @@ def updateConfig(user, host, bastion):
     except FileNotFoundError:
         config = []
 
-    start = findHostLine(config, host)
+    start = findHostLine(config, pseudonym)
     config = commentUntilNextHost(config, start)
+
+    user, host = targetSplit(target)
     
     # Add the relevant lines for the config.
     config.insert(start, '\n')
+    if pseudonym:
+        hostnameline = '    hostname ' + host + '\n'
+        config.insert(start, hostnameline)
+    else:
+        pseudonym = host
     if user:
         userline = '    user ' + user + '\n'
         config.insert(start, userline)
-    idline = '    IdentityFile ' + createKey(user, host) + '\n'
+    idline = '    IdentityFile ' + keypath + '\n'
     config.insert(start, idline)
     if bastion:
         bastionline = '    ProxyCommand ssh ' + bastion + ' -W ' + host + ':%p\n'
@@ -143,22 +159,21 @@ def updateConfig(user, host, bastion):
 
     return True
 
-def insertKey(user, host, bastion):
+def insertKey(target, keypath, bastion):
     remoteCommand = 'mkdir .ssh 2> /dev/null; cat >> .ssh/authorized_keys'
-    connstring = user+'@'+host
-    with open(environ['HOME'] + '/.ssh/auto/' + connstring + '.pub') as pubkey:
+    with open(environ['HOME'] + '/.ssh/auto/' + target + '.pub') as pubkey:
         #FIXME Add actual bastion parameters.
-        subprocess.call(['ssh', user+'@'+host, remoteCommand], 
+        subprocess.call(['ssh', target, remoteCommand], 
             stdin=pubkey)
     print('Key installed.')
 
 if __name__ == '__main__':
     try:
-        user, host, bastion, root = handle_args(argv)
-        print(user, host, bastion, root)
-        #createKey(user, host) # Called in updateConfig
-        updateConfig(user, host, bastion)
-        insertKey(user, host, bastion)
+        target, bastion, root, pseudonym = handle_args(argv)
+        keypath = createKey(target)
+        updateConfig(target, bastion, pseudonym, keypath)
+        insertKey(target, keypath, bastion)
     except InputError:
-        print("usage: ssh-init [-r] TARGET [HOP]")
+        #print("usage: ssh-init [-r] [-p pseudonym] TARGET [HOP]")
+        raise
         
