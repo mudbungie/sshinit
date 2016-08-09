@@ -151,7 +151,7 @@ def updateConfig(target, bastion, pseudonym, keypath):
     if bastion:
         bastionline = '    ProxyCommand ssh ' + bastion + ' -W ' + host + ':%p\n'
         config.insert(start, bastionline)
-    hostline = 'Host ' + host + '\n'
+    hostline = 'Host ' + pseudonym + '\n'
     config.insert(start, hostline)
 
     with open(conffilename, 'w') as conffile:
@@ -170,7 +170,7 @@ def insertKey(target, keypath, bastion):
 if __name__ == '__main__':
     try:
         target, bastion, root, pseudonym = handle_args(argv)
-        keypath = createKey(target)
+        keypath = createKey(pseudonym)
         updateConfig(target, bastion, pseudonym, keypath)
         insertKey(target, keypath, bastion)
     except InputError:
