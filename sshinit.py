@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 
-# This software is covered under the GNU AGPLv3 
-# https://www.gnu.org/licenses/agpl-3.0.en.html
+# This software is covered under the GNU GPLv3 
+# https://www.gnu.org/licenses/gpl.txt
 # Contact the author at mudbungie@gmail.com
 # Copyright 2016 mudbungie
 
@@ -36,7 +36,6 @@ def handle_args(argv):
         if arg == '-r':
             root = True
         elif arg == '-p':
-            print('it was -p')
             try:
                 pseudonym = argv.pop(index + 1)
             except IndexError:
