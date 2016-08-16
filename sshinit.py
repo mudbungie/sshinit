@@ -65,7 +65,7 @@ def handle_args(argv):
     if not 'hostname' in settings:
         settings['hostname'] = settings['host']
     if not 'port' in settings:
-        settings['port'] = 22
+        settings['port'] = '22'
     return settings
 
 # Makes an SSH key, and puts it into $HOME/.ssh/auto/[target]
