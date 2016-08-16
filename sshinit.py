@@ -26,102 +26,82 @@ class InputError(Exception):
 # hop, if any.
 def handle_args(argv):
     # Default settings:
-    root = False
-    pseudonym = False
-    target = False
-    bastion = False
+    settings = {}
     argv = argv[1:] # Discard the name of the program.
     for index, arg in enumerate(argv):
         print(index, arg)
         if arg == '-r':
-            root = True
-        elif arg == '-p':
+            settings['root'] = True
+        elif arg == '-h':
             try:
-                pseudonym = argv.pop(index + 1)
+                settings['hostname'] = argv.pop(index + 1)
             except IndexError:
                 raise InputError('-p takes a positional argument.')
+        elif arg.startswith('-'):
+            raise InputError('Unkown option ' + arg)
         # First positional is host.
-        elif not target:
+        elif not 'host' in settings:
             # Check for the presence of a user.
-            # This does a basic sanity check.
-            targetSplit(arg)
-            target = arg
+            target = arg.split('@')
+            if len(target) == 1:
+                target = target[0]
+            elif len(target) == 2:
+                settings['user'] = target[0]
+                target = target[1]
+            else:
+                raise InputError('Multiple @ symbols in connection string.')
+            target = target.split(':')
+            settings['host'] = target[0]
+            if len(target) == 2:
+                settings['port'] = target[1]
+            elif len(target) > 2:
+                raise InputError('Multiple : symbols in connection string.')
         # Second positional is bastion.
-        elif not bastion:
-            bastion = arg
+        elif not 'bastion' in settings:
+            settings['bastion'] = arg
         else:
             raise InputError('Too many arguments')
-    return target, bastion, root, pseudonym
-        
-def targetSplit(*args):
-    if len(args) == 1:
-        host = args[0].split('@')
-        if len(host) == 1:
-            return False, host[0]
-        elif len(host) == 2:
-            return host[0], host[1]
-        else:
-            raise InputError('Too many @ signs in host.')
-    elif len(args) == 2:
-        return '@'.join([args[0], args[1]])
-    else:
-        raise IndexError('wrong number of arguments')
+    # Set defaults.
+    if not 'hostname' in settings:
+        settings['hostname'] = settings['host']
+    if not 'port' in settings:
+        settings['port'] = 22
+    return settings
 
 # Makes an SSH key, and puts it into $HOME/.ssh/auto/[target]
-def createKey(target):
-    keydir = environ['HOME'] + '/.ssh/auto'
+def createKey(settings):
+    # Construct the strings that we'll use.
+    keydir = environ['HOME'] + '/.ssh/auto/'
+    target = settings['hostname']
+    if 'user' in settings:
+        target = settings['user'] + '@' + target
+    if 'port' in settings:
+        target = target + ':' + settings['port']
 
     # Make sure that we can insert keys...
     makedirs(keydir, exist_ok=True)
     chmod(keydir, 0o700)
 
     # Actually make it.
-
-    keypath = keydir + '/' + target
-
-    subprocess.call(['ssh-keygen','-t','ed25519','-f',keypath,'-C',
-        target,'-N',''])
+    keypath = keydir + target
+    subprocess.call(['ssh-keygen' , '-t' , 'ed25519' , '-f' , keypath , '-C',
+        'auto' , '-N' , ''])
     print('Keypair created in', keypath)
     return keypath
 
 # Checks the ~/.ssh/config file for existing configuration. Returns line range
 # or none.
 def findHostLine(config, host):
-    hostline = re.compile('^\s*Host\s*' + re.escape(host) + '\s*$')
-    for index, line in enumerate(config):
-        if hostline.match(line):
-            return index
     return len(config)
 
-# Comment out parameters that we set: user, proxy, identityfile, host.
-def commentUntilNextHost(config, start):
-    user = re.compile(r'^\s*user\s.*$')
-    proxy = re.compile(r'^\s*ProxyCommand\s.*')
-    idline = re.compile(r'^\s*IdentityFile\s.*')
-    hostnameline = re.compile(r'^\s*hostname\s.*')
-    anyhostline = re.compile(r'^\s*Host\s.*')
-
-    try:
-        config[start] = '#' + config[start]
-    except IndexError:
-        pass
-    # Iterate over lines from start, comment things until you hit nest host. 
-    for index, line in enumerate(config[start:]):
-        if anyhostline.match(line):
-            print('Host match for:', line)
-            print('Stopping ssh configuration.')
-            return config
-        elif user.match(line) or proxy.match(line) or idline.match(line) \
-            or hostnameline.match(line):
-            print('Commenting out:', line)
-            config[index + start] = '#' + line
-        else:
-            print('Unmanaged line:', line)
-    # In case there is no next host config, just give the file back.
-    return config
+def confregex(key, value=False):
+    if not value:
+        return re.compile(r'^\s*' + key + '\s.*$')
+    else:
+        return re.compile(r'^s*' + key + '\s*' + value + '\s*$')
 
 # Make the config file have a valid entry for this host.
-def updateConfig(target, bastion, pseudonym, keypath):
+def updateConfig(settings):
     # Just get the config file.
     conffilename = environ['HOME'] + '/.ssh/config'
     try:
@@ -130,48 +110,68 @@ def updateConfig(target, bastion, pseudonym, keypath):
     except FileNotFoundError:
         config = []
 
-    start = findHostLine(config, pseudonym)
-    config = commentUntilNextHost(config, start)
-
-    user, host = targetSplit(target)
+    # Go through the config, and comment out lines starting with the one
+    # that names this host, and going until the next line that names a host. 
+    hostline = confregex('Host', value=settings['hostname'])
+    anyhostline = confregex('Host')
+    conflines = [confregex('user'), confregex('ProxyCommand'), 
+        confregex('IdentityFile'), confregex('hostname'), confregex('Port')]
+    start = False
+    terminus = len(config)
+    for index, line in enumerate(config):
+        if start:
+            if anyhostline.match(line):
+                start = False
+                terminus = index
+        elif hostline.match(line):
+            print('Configuration matched at line', index)
+            start = True
+            config[index] = '#' + config[index]
+        if start:
+            print(start)
+            for confline in conflines:
+                if confline.match(line):
+                    print('Commenting line', index)
+                    config[index] = '#' + config[index]
     
     # Add the relevant lines for the config.
-    config.insert(start, '\n')
-    if pseudonym:
-        hostnameline = '    hostname ' + host + '\n'
-        config.insert(start, hostnameline)
-    else:
-        pseudonym = host
-    if user:
-        userline = '    user ' + user + '\n'
-        config.insert(start, userline)
-    idline = '    IdentityFile ' + keypath + '\n'
-    config.insert(start, idline)
-    if bastion:
-        bastionline = '    ProxyCommand ssh ' + bastion + ' -W ' + host + ':%p\n'
-        config.insert(start, bastionline)
-    hostline = 'Host ' + pseudonym + '\n'
-    config.insert(start, hostline)
+    config.insert(terminus, '\n')
+    config.insert(terminus, '    hostname ' + settings['host'] + '\n')
+    config.insert(terminus, '    IdentityFile ' + settings['keypath'] + '\n')
+    config.insert(terminus, '    Port ' + settings['port'] + '\n')
+    if 'user' in settings:
+        config.insert(terminus, '    user ' + settings['user'] + '\n')
+    if 'bastion' in settings:
+        config.insert(terminus, '    ProxyCommand ssh ' +\
+            settings['bastion'] + ' -W ' + settings['host'] + ':%p\n')
+    # Hostline is last, because we're inserting at the top of the section.
+    config.insert(terminus, 'Host ' + settings['hostname'] + '\n')
 
+    # Replace the current config with the modified config.
     with open(conffilename, 'w') as conffile:
         conffile.writelines(config)
 
-    return True
+def insertKey(settings):
+    target = settings['hostname']
+    if 'user' in settings:
+        target = settings['user'] + '@' + target
 
-def insertKey(target, keypath, bastion):
     remoteCommand = 'mkdir .ssh 2> /dev/null; cat >> .ssh/authorized_keys'
-    with open(environ['HOME'] + '/.ssh/auto/' + target + '.pub') as pubkey:
+    with open(settings['keypath'] + '.pub') as pubkey:
         #FIXME Add actual bastion parameters.
-        subprocess.call(['ssh', target, remoteCommand], 
+        a = subprocess.call(['ssh', target, '-p', settings['port'], remoteCommand],
             stdin=pubkey)
-    print('Key installed.')
+        if a == 0:
+            print('Key installed.')
+        else:
+            print('Key installation failed.')
 
 if __name__ == '__main__':
     try:
-        target, bastion, root, pseudonym = handle_args(argv)
-        keypath = createKey(pseudonym)
-        updateConfig(target, bastion, pseudonym, keypath)
-        insertKey(target, keypath, bastion)
+        settings = handle_args(argv)
+        settings['keypath'] = createKey(settings)
+        updateConfig(settings)
+        insertKey(settings)
     except InputError:
         #print("usage: ssh-init [-r] [-p pseudonym] TARGET [HOP]")
         raise
