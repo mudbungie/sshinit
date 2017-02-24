@@ -36,7 +36,7 @@ def handle_args(argv):
             try:
                 settings['hostname'] = argv.pop(index + 1)
             except IndexError:
-                raise InputError('-p takes a positional argument.')
+                raise InputError('-h takes a positional argument.')
         elif arg.startswith('-'):
             raise InputError('Unkown option ' + arg)
         # First positional is host.
