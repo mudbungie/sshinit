@@ -92,7 +92,7 @@ def createKey(settings):
 	# Actually make it.
 	keypath = keydir + target
 	subprocess.call(['ssh-keygen' , '-t' , 'ed25519' , '-f' , keypath , '-C',
-		'auto' , '-N' , ''])
+		'auto' , '-N' , settings['password']])
 	print('Keypair created in', keypath)
 	return keypath
 
