@@ -11,7 +11,7 @@
 # root user, and copy the ssh key there.
 
 # Usage: 
-#   ssh-init [-r] user@host
+#   ssh-init [user@]host[:port] [-r] [-p] [-h name]
 
 from sys import argv
 import subprocess
@@ -26,8 +26,10 @@ class InputError(Exception):
 # user, host, whether or not we're providing root access, and an intermediate
 # hop, if any.
 def handle_args(argv):
+	
 	# Default settings:
-	settings = {}
+	settings = {'root':False, 'port':22, 'password':''}
+
 	argv = argv[1:] # Discard the name of the program.
 	for index, arg in enumerate(argv):
 		print(index, arg)
@@ -64,15 +66,10 @@ def handle_args(argv):
 			settings['bastion'] = arg
 		else:
 			raise InputError('Too many arguments')
-	# Set defaults.
+	if settings['password']:
+		settings['password'] = getpass(prompt='Please enter password: ')
 	if not 'hostname' in settings:
 		settings['hostname'] = settings['host']
-	if not 'port' in settings:
-		settings['port'] = '22'
-	if 'password' in settings:
-		settings['password'] = getpass(prompt='Please enter password: ')
-	else:
-		settings['password'] = ''
 	return settings
 
 # Makes an SSH key, and puts it into $HOME/.ssh/auto/[target]
@@ -164,6 +161,7 @@ def insertKey(settings):
 		target = settings['user'] + '@' + target
 
 	remoteCommand = 'mkdir .ssh 2> /dev/null; cat >> .ssh/authorized_keys'
+		
 	with open(settings['keypath'] + '.pub') as pubkey:
 		#FIXME Add actual bastion parameters.
 		command = ['ssh', target, '-p', settings['port'], remoteCommand]
@@ -175,6 +173,11 @@ def insertKey(settings):
 			print('Key installed.')
 		else:
 			print('Key installation failed.')
+
+	# If root is true, then we also append the key to /root/.ssh/authorized_keys
+	if settings['root']:
+		remoteCommand = 'tail -n 1 $HOME/.ssh/authorized_keys | eval "sudo "'
+		
 
 if __name__ == '__main__':
 	try:
