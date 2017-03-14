@@ -12,6 +12,14 @@
 
 # Usage: 
 #   ssh-init [user@]host[:port] [-r] [-p] [-h name]
+# 	-r root
+#			Inserts the ssh key into /root/.ssh/authorized_keys, as well.
+# 	-p password
+# 		Prompt for a password, to encrypt the key. If not specified, keys are
+#			stored unencrypted.
+# 	-h host
+#			Specifies the Host directive in the local .ssh/config. The pseudonym by
+#			which this connection will be remembered. 
 
 from sys import argv
 import subprocess
