@@ -28,7 +28,7 @@ class InputError(Exception):
 def handle_args(argv):
 	
 	# Default settings:
-	settings = {'root':False, 'port':22, 'password':''}
+	settings = {'root':False, 'port':'22', 'password':''}
 
 	argv = argv[1:] # Discard the name of the program.
 	for index, arg in enumerate(argv):
@@ -132,7 +132,7 @@ def updateConfig(settings):
 			start = True
 			config[index] = '#' + config[index]
 		if start:
-			print(start)
+			#print(start)
 			for confline in conflines:
 				if confline.match(line):
 					print('Commenting line', index)
@@ -165,7 +165,7 @@ def insertKey(settings):
 	with open(settings['keypath'] + '.pub') as pubkey:
 		#FIXME Add actual bastion parameters.
 		command = ['ssh', target, '-p', settings['port'], remoteCommand]
-		print(command)
+		#print(command)
 		a = subprocess.call(command, stdin=pubkey)
 		#a = subprocess.call(['ssh', target, '-p', settings['port'], remoteCommand],
 		#	stdin=pubkey)
@@ -176,8 +176,13 @@ def insertKey(settings):
 
 	# If root is true, then we also append the key to /root/.ssh/authorized_keys
 	if settings['root']:
-		remoteCommand = 'tail -n 1 $HOME/.ssh/authorized_keys | eval "sudo "'
-		
+		if not settings['user'] == 'root':
+			print('Attempting root access.')
+			remoteCommand = 'sudo mkdir -p /root/.ssh; tail -n 1 .ssh/authorized_keys |sudo -- bash -c "cat >> /root/.ssh/authorized_keys"'
+			command = ['ssh', '-t', target, remoteCommand]
+			a = subprocess.call(command)
+		else:
+			print('It is redundant to use the -r option when the user is root.')
 
 if __name__ == '__main__':
 	try:
