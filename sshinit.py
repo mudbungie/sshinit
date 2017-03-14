@@ -186,7 +186,9 @@ def insertKey(settings):
 	if settings['root']:
 		if not settings['user'] == 'root':
 			print('Attempting root access.')
-			remoteCommand = 'sudo mkdir -p /root/.ssh; tail -n 1 .ssh/authorized_keys |sudo -- bash -c "cat >> /root/.ssh/authorized_keys"'
+			remoteCommand = 'sudo mkdir -p /root/.ssh; tail -n 1 ' +\
+				'.ssh/authorized_keys |sudo -- bash -c "cat >> ' +\
+				'/root/.ssh/authorized_keys"'
 			command = ['ssh', '-t', target, remoteCommand]
 			a = subprocess.call(command)
 		else:
