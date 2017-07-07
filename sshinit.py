@@ -116,6 +116,10 @@ def updateConfig(settings):
         with open(conffilename, 'r') as conffile:
             config = conffile.readlines()
     except FileNotFoundError:
+        # If it's not there, make it, and set the permissions.
+        with open(conffilename, 'a') as conffile:
+            conffile.write('')
+        chmod(conffilename, 0o600)
         config = []
 
     # Go through the config, and comment out lines starting with the one
