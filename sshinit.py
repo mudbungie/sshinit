@@ -101,11 +101,7 @@ def createKey(settings):
     print('Keypair created in', keypath)
     return keypath
 
-# Checks the ~/.ssh/config file for existing configuration. Returns line range
-# or none.
-def findHostLine(config, host):
-    return len(config)
-
+# Compiles regex to look for a value, or to look for a key-value pair.
 def confregex(key, value=False):
     if not value:
         return re.compile(r'^\s*' + key + '\s.*$')
