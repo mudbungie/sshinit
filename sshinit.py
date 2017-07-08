@@ -36,7 +36,7 @@ class InputError(Exception):
 def handle_args(argv):
     
     # Default settings:
-    settings = {'root':False, 'port':'22', 'password':''}
+    settings = {'root':False, 'port':'22', 'password':'', 'idfile':''}
 
     argv = argv[1:] # Discard the name of the program.
     for index, arg in enumerate(argv):
@@ -48,6 +48,11 @@ def handle_args(argv):
                 settings['hostname'] = argv.pop(index + 1)
             except IndexError:
                 raise InputError('-h takes a positional argument.')
+        elif arg == '-i':
+            try:
+                settings['idfile'] = argv.pop(index + 1)
+            except IndexError:
+                raise InputError('-i takes a positional argument.')
         elif arg == '-p':
             settings['password'] = True
         elif arg.startswith('-'):
@@ -172,7 +177,10 @@ def insertKey(settings):
         
     with open(settings['keypath'] + '.pub') as pubkey:
         #FIXME Add actual bastion parameters.
-        command = ['ssh', target, '-p', settings['port'], remoteCommand]
+        command = ['ssh', target, '-p', settings['port']]
+        if settings['idfile']:
+            command += ['-i', settings['idfile']]
+        command += [remoteCommand]
         #print(command)
         a = subprocess.call(command, stdin=pubkey)
         #a = subprocess.call(['ssh', target, '-p', settings['port'], remoteCommand],
