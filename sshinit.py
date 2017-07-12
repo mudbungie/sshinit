@@ -21,11 +21,11 @@
 #            Specifies the Host directive in the local .ssh/config. The pseudonym by
 #            which this connection will be remembered. 
 
-from sys import argv
+from sys import argv, exit
 import subprocess
 import re
 from getpass import getpass
-from os import environ, chmod, makedirs
+from os import environ, chmod, makedirs, rename, symlink, path
 
 class InputError(Exception):
     pass
@@ -40,7 +40,7 @@ def handle_args(argv):
 
     argv = argv[1:] # Discard the name of the program.
     for index, arg in enumerate(argv):
-        print(index, arg)
+        #print(index, arg)
         if arg == '-r':
             settings['root'] = True
         elif arg == '-h':
@@ -55,6 +55,9 @@ def handle_args(argv):
                 raise InputError('-i takes a positional argument.')
         elif arg == '-p':
             settings['password'] = True
+        elif arg == '--install':
+            install() # Not a setting that gets passed along.
+            exit() # Also, it's the only thing we'll be doing, in that case.
         elif arg.startswith('-'):
             raise InputError('Unkown option ' + arg)
         # First positional is host.
@@ -84,6 +87,18 @@ def handle_args(argv):
     if not 'hostname' in settings:
         settings['hostname'] = settings['host']
     return settings
+
+# Makes a local ~/bin/lib, puts script in lib, links it to bin.
+def install():
+    # Make the ~/bin/lib
+    bindir = path.expanduser('~') + '/bin'
+    libdir = bindir + '/lib'
+    makedirs(libdir, exist_ok=True)
+    # Move the project into lib
+    newpath = libdir + '/sshinit'
+    rename(path.dirname(path.abspath(__file__)), newpath)
+    # Link it into the bin
+    symlink(newpath + '/sshinit.py', bindir + '/sshinit')
 
 # Makes an SSH key, and puts it into $HOME/.ssh/auto/[target]
 def createKey(settings):
